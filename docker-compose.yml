@@ -1,33 +1,85 @@
 services:
-  app:
-    build: .
-    ports:
-      - "8000:8000"
-    volumes:
-      - .:/app
-    depends_on:
-      - db
-      - redis
-
+  # -------------------------------
+  # PostgreSQL Database
+  # -------------------------------
   db:
     image: postgres:15
+    container_name: ai_db
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: ai_user
+      POSTGRES_PASSWORD: ai_password
       POSTGRES_DB: ai_eval
     ports:
       - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - ai-network
 
+  # -------------------------------
+  # Redis Broker
+  # -------------------------------
   redis:
     image: redis:7
+    container_name: ai_redis
     ports:
       - "6379:6379"
+    networks:
+      - ai-network
 
-  worker:
-    build: .
-    command: celery -A worker.celery_app worker --loglevel=info
+  # -------------------------------
+  # FastAPI Application
+  # -------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: postgresql://ai_user:ai_password@db:5432/ai_eval
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "8000:8000"
+    networks:
+      - ai-network
     volumes:
       - .:/app
+
+  # -------------------------------
+  # Celery Worker
+  # -------------------------------
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_worker
+    command: celery -A worker.celery_app worker --loglevel=debug
+    environment:
+      DATABASE_URL: postgresql://ai_user:ai_password@db:5432/ai_eval
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
     depends_on:
-      - redis
       - db
+      - redis
+    networks:
+      - ai-network
+    volumes:
+      - .:/app
+
+# -------------------------------
+# Docker Volumes
+# -------------------------------
+volumes:
+  db_data:
+
+# -------------------------------
+# Docker Network
+# -------------------------------
+networks:
+  ai-network:
+    driver: bridge
