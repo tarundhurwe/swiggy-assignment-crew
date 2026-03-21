@@ -11,7 +11,6 @@ from app.services.meta_evaluation_service import MetaEvaluationService
 from app.models.evaluation import Evaluation
 
 
-@celery_app.task
 def process_conversation(conversation_id: str):
     """
     Process a conversation by evaluating its quality, generating feedback, and generating suggestions.

@@ -31,7 +31,7 @@ def ingest_conversation(payload: ConversationSchema, db: Session = Depends(get_d
         db.commit()
 
         # Send to Celery
-        process_conversation.delay(payload.conversation_id)
+        process_conversation(payload.conversation_id)
 
         return {"status": "ingested", "conversation_id": payload.conversation_id}
 
